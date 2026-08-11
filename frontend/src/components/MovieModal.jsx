@@ -16,7 +16,8 @@ import {
   Server,
   Loader2,
   ShieldAlert,
-  Zap
+  Zap,
+  Globe
 } from 'lucide-react';
 import RatingBadge from './RatingBadge';
 import GenrePill from './GenrePill';
@@ -29,7 +30,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   const { addToast } = useToast();
   const [details, setDetails] = useState(movie || null);
   const [inWatchlist, setInWatchlist] = useState(movie?.is_in_watchlist || false);
-  const [selectedServer, setSelectedServer] = useState('embed_su');
+  const [selectedServer, setSelectedServer] = useState('vidsrc_cc');
   const [season, setSeason] = useState(1);
   const [episode, setEpisode] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -40,7 +41,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
     if (!isOpen || !movie?.id) return;
     setDetails(movie);
     setInWatchlist(movie.is_in_watchlist || false);
-    setSelectedServer('embed_su');
+    setSelectedServer('vidsrc_cc');
     setIframeLoading(true);
 
     const fetchFullDetails = async () => {
@@ -94,23 +95,28 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   const isSeries = details.type === 'series';
   const id = details.id;
 
-  // Top 2 high-speed CDN embed URL generator
+  // Stream embed URL generator
   const getEmbedUrl = () => {
     if (!id) return '';
+    if (selectedServer === 'vidsrc_cc') {
+      return isSeries 
+        ? `https://vidsrc.cc/v2/embed/tv/${id}/${season}/${episode}`
+        : `https://vidsrc.cc/v2/embed/movie/${id}`;
+    }
     if (selectedServer === 'embed_su') {
       return isSeries 
         ? `https://embed.su/embed/tv/${id}/${season}/${episode}`
         : `https://embed.su/embed/movie/${id}`;
     }
-    if (selectedServer === 'vidsrc_vip') {
+    if (selectedServer === 'autoembed') {
       return isSeries 
-        ? `https://vidsrc.vip/embed/tv/${id}/${season}/${episode}`
-        : `https://vidsrc.vip/embed/movie/${id}`;
+        ? `https://autoembed.co/tv/tmdb/${id}-${season}-${episode}`
+        : `https://autoembed.co/movie/tmdb/${id}`;
     }
     if (selectedServer === 'trailer' && details.trailer_key) {
       return `https://www.youtube.com/embed/${details.trailer_key}?autoplay=1&rel=0`;
     }
-    return `https://embed.su/embed/movie/${id}`;
+    return `https://vidsrc.cc/v2/embed/movie/${id}`;
   };
 
   const embedUrl = getEmbedUrl();
@@ -145,9 +151,9 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
           {embedUrl ? (
             <>
               {iframeLoading && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-none gap-3">
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm pointer-events-none gap-3">
                   <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
-                  <p className="text-xs text-slate-300 font-medium">Connecting to high-speed stream...</p>
+                  <p className="text-xs text-slate-300 font-medium">Connecting to stream server...</p>
                 </div>
               )}
               <iframe
@@ -156,7 +162,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                 title={details.title}
                 allow="autoplay; encrypted-media; fullscreen; picture-in-picture; display-capture"
                 allowFullScreen={true}
-                referrerPolicy="origin"
+                referrerPolicy="no-referrer"
                 loading="eager"
                 onLoad={() => setIframeLoading(false)}
                 className="w-full h-full border-0"
@@ -175,17 +181,27 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
         </div>
 
         {/* Notice & Server Selector Bar in Modal */}
-        <div className="px-4 sm:px-6 py-2 bg-amber-950/30 border-b border-amber-500/20 text-[11px] text-amber-200 flex items-center gap-1.5">
-          <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span>If stream fails to load, disable AdBlocker or click <strong>Player Window</strong>.</span>
+        <div className="px-4 sm:px-6 py-2 bg-gradient-to-r from-amber-950/40 to-purple-950/30 border-b border-amber-500/20 text-[11px] text-amber-200 flex items-center gap-1.5">
+          <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span>If stream fails to load on Jio/Airtel, switch servers or click <strong>Player Window</strong>.</span>
         </div>
 
         <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-2.5 bg-black/40 border-b border-white/5 flex-wrap">
-          {/* Top 2 Clean Server Selector */}
+          {/* Server Selector */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[11px] font-bold text-slate-400 mr-1 flex items-center gap-1">
               <Zap className="w-3.5 h-3.5 text-purple-400 fill-current" /> Stream:
             </span>
+            <button
+              onClick={() => setSelectedServer('vidsrc_cc')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                selectedServer === 'vidsrc_cc'
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
+                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              Server 1 (VidSrc CC - Primary)
+            </button>
             <button
               onClick={() => setSelectedServer('embed_su')}
               className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
@@ -194,17 +210,17 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                   : 'bg-white/5 text-slate-300 hover:bg-white/10'
               }`}
             >
-              Server 1 (Embed.su Fast)
+              Server 2 (Embed.su)
             </button>
             <button
-              onClick={() => setSelectedServer('vidsrc_vip')}
+              onClick={() => setSelectedServer('autoembed')}
               className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                selectedServer === 'vidsrc_vip'
+                selectedServer === 'autoembed'
                   ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
                   : 'bg-white/5 text-slate-300 hover:bg-white/10'
               }`}
             >
-              Server 2 (VidSrc VIP)
+              Server 3 (AutoEmbed)
             </button>
             {details.trailer_key && (
               <button
