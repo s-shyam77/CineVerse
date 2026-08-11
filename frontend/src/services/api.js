@@ -3,7 +3,7 @@ import axios from 'axios';
 const API_BASE_URL = 
   import.meta.env.VITE_API_BASE_URL || 
   import.meta.env.VITE_API_URL || 
-  'http://localhost:8000';
+  'https://cineverse-backend-bc2u.onrender.com';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -40,4 +40,5 @@ api.interceptors.response.use(
   }
 );
 
+export { API_BASE_URL };
 export default api;
