@@ -16,8 +16,9 @@ import {
   Tv, 
   Film,
   Server,
-  Layers,
-  ChevronDown
+  ExternalLink,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -42,11 +43,18 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showControls, setShowControls] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
+  const [iframeLoading, setIframeLoading] = useState(true);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
-  const [serverDropdownOpen, setServerDropdownOpen] = useState(false);
 
   const controlsTimeoutRef = useRef(null);
   const isSeries = movie?.type === 'series';
+
+  // Reset iframe loading when server, season, or episode changes
+  useEffect(() => {
+    if (selectedServer !== 'html5') {
+      setIframeLoading(true);
+    }
+  }, [selectedServer, season, episode]);
 
   // Sync progress to backend
   const syncProgress = useCallback(async (time, totalDuration) => {
@@ -268,6 +276,12 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
 
   const embedSrc = getEmbedUrl();
 
+  const handleOpenExternalWindow = () => {
+    if (embedSrc) {
+      window.open(embedSrc, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   const servers = [
     { id: 'server1', name: 'Server 1 (VidSrc HD)' },
     { id: 'server2', name: 'Server 2 (AutoEmbed)' },
@@ -278,7 +292,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Streaming Server Controls & Episode Picker Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl glass-panel border border-white/10">
         {/* Server Selector Tabs */}
@@ -348,12 +362,20 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         {/* If Embed Server Selected (Server 1-4 or Trailer) */}
         {selectedServer !== 'html5' && embedSrc ? (
           <div className="relative w-full h-full">
+            {iframeLoading && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-none gap-3">
+                <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+                <p className="text-xs text-slate-300 font-medium">Connecting to stream server...</p>
+              </div>
+            )}
             <iframe
               key={`${selectedServer}-${season}-${episode}`}
               src={embedSrc}
               title={movie?.title || 'Video Stream'}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
+              allow="autoplay; encrypted-media; fullscreen; picture-in-picture; display-capture"
+              allowFullScreen={true}
+              referrerPolicy="origin"
+              onLoad={() => setIframeLoading(false)}
               className="w-full h-full border-0"
             />
           </div>
@@ -527,6 +549,26 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
           <div className="w-12 sm:w-16" />
         </div>
       </div>
+
+      {/* Fallback & External Window Direct Action Bar */}
+      {selectedServer !== 'html5' && embedSrc && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-2xl bg-purple-950/30 border border-purple-800/40 text-xs">
+          <div className="flex items-center gap-2 text-slate-300">
+            <AlertCircle className="w-4 h-4 text-purple-400 shrink-0" />
+            <span>
+              If the stream is stuck or blocked by your browser/adblocker, switch servers above or open the direct stream window.
+            </span>
+          </div>
+
+          <button
+            onClick={handleOpenExternalWindow}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xs hover:scale-105 transition-all shadow-md shrink-0"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Open in Player Window
+          </button>
+        </div>
+      )}
     </div>
   );
 };

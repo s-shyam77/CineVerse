@@ -13,7 +13,8 @@ import {
   Volume2,
   VolumeX,
   Sparkles,
-  Server
+  Server,
+  Loader2
 } from 'lucide-react';
 import RatingBadge from './RatingBadge';
 import GenrePill from './GenrePill';
@@ -30,6 +31,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   const [season, setSeason] = useState(1);
   const [episode, setEpisode] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [iframeLoading, setIframeLoading] = useState(true);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
 
   useEffect(() => {
@@ -37,6 +39,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
     setDetails(movie);
     setInWatchlist(movie.is_in_watchlist || false);
     setSelectedServer('server1');
+    setIframeLoading(true);
 
     const fetchFullDetails = async () => {
       try {
@@ -55,6 +58,10 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
 
     fetchFullDetails();
   }, [isOpen, movie]);
+
+  useEffect(() => {
+    setIframeLoading(true);
+  }, [selectedServer, season, episode]);
 
   if (!isOpen || !details) return null;
 
@@ -111,6 +118,12 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
 
   const embedUrl = getEmbedUrl();
 
+  const handleOpenExternalWindow = () => {
+    if (embedUrl) {
+      window.open(embedUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 md:p-6 overflow-y-auto">
       {/* Backdrop */}
@@ -133,14 +146,24 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
         {/* Video Player Header Area */}
         <div className="relative w-full aspect-video sm:max-h-[380px] md:max-h-[420px] bg-black shrink-0 overflow-hidden">
           {embedUrl ? (
-            <iframe
-              key={`${selectedServer}-${season}-${episode}`}
-              src={embedUrl}
-              title={details.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              className="w-full h-full border-0"
-            />
+            <>
+              {iframeLoading && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-none gap-3">
+                  <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+                  <p className="text-xs text-slate-300 font-medium">Loading stream player...</p>
+                </div>
+              )}
+              <iframe
+                key={`${selectedServer}-${season}-${episode}`}
+                src={embedUrl}
+                title={details.title}
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; display-capture"
+                allowFullScreen={true}
+                referrerPolicy="origin"
+                onLoad={() => setIframeLoading(false)}
+                className="w-full h-full border-0"
+              />
+            </>
           ) : (
             <div className="relative w-full h-full">
               <img
@@ -153,7 +176,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
           )}
         </div>
 
-        {/* Server Selector Bar in Modal */}
+        {/* Server Selector & Quick Open Window Bar */}
         <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-2.5 bg-black/40 border-b border-white/5 flex-wrap">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[11px] font-bold text-slate-400 mr-1 flex items-center gap-1">
@@ -203,29 +226,41 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
             )}
           </div>
 
-          {/* Series Episode Selector in Modal */}
-          {isSeries && selectedServer !== 'trailer' && (
-            <div className="flex items-center gap-1.5 text-[11px]">
-              <select
-                value={season}
-                onChange={(e) => setSeason(Number(e.target.value))}
-                className="bg-slate-800 text-white px-2 py-0.5 rounded border border-white/10 text-xs"
-              >
-                {[1, 2, 3, 4, 5, 6].map((s) => (
-                  <option key={s} value={s}>S{s}</option>
-                ))}
-              </select>
-              <select
-                value={episode}
-                onChange={(e) => setEpisode(Number(e.target.value))}
-                className="bg-slate-800 text-white px-2 py-0.5 rounded border border-white/10 text-xs"
-              >
-                {Array.from({ length: 24 }).map((_, i) => (
-                  <option key={i + 1} value={i + 1}>Ep {i + 1}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Series Episode Selector */}
+            {isSeries && selectedServer !== 'trailer' && (
+              <div className="flex items-center gap-1.5 text-[11px]">
+                <select
+                  value={season}
+                  onChange={(e) => setSeason(Number(e.target.value))}
+                  className="bg-slate-800 text-white px-2 py-0.5 rounded border border-white/10 text-xs"
+                >
+                  {[1, 2, 3, 4, 5, 6].map((s) => (
+                    <option key={s} value={s}>S{s}</option>
+                  ))}
+                </select>
+                <select
+                  value={episode}
+                  onChange={(e) => setEpisode(Number(e.target.value))}
+                  className="bg-slate-800 text-white px-2 py-0.5 rounded border border-white/10 text-xs"
+                >
+                  {Array.from({ length: 24 }).map((_, i) => (
+                    <option key={i + 1} value={i + 1}>Ep {i + 1}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Direct Window Fallback Button */}
+            <button
+              onClick={handleOpenExternalWindow}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-purple-300 hover:text-white text-xs font-semibold transition-colors"
+              title="Open stream in a clean external player window"
+            >
+              <ExternalLink className="w-3 h-3" />
+              <span className="hidden sm:inline">Player Window</span>
+            </button>
+          </div>
         </div>
 
         {/* Modal Body Details */}
