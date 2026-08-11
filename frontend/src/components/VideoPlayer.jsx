@@ -18,7 +18,8 @@ import {
   Server,
   ExternalLink,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  ShieldAlert
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -30,8 +31,8 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
-  // Server sources: 'server1', 'server2', 'server3', 'server4', 'trailer', 'html5'
-  const [selectedServer, setSelectedServer] = useState('server1');
+  // Server sources: 'server_vip', 'server_su', 'server_2embed', 'server_cc', 'server_auto', 'server_xyz', 'trailer', 'html5'
+  const [selectedServer, setSelectedServer] = useState('server_vip');
   const [season, setSeason] = useState(1);
   const [episode, setEpisode] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -246,25 +247,35 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
     const id = movie?.id;
     if (!id) return '';
 
-    if (selectedServer === 'server1') {
+    if (selectedServer === 'server_vip') {
+      return isSeries 
+        ? `https://vidsrc.vip/embed/tv/${id}/${season}/${episode}`
+        : `https://vidsrc.vip/embed/movie/${id}`;
+    }
+    if (selectedServer === 'server_su') {
+      return isSeries 
+        ? `https://embed.su/embed/tv/${id}/${season}/${episode}`
+        : `https://embed.su/embed/movie/${id}`;
+    }
+    if (selectedServer === 'server_2embed') {
+      return isSeries 
+        ? `https://www.2embed.cc/embedtv/${id}&s=${season}&e=${episode}`
+        : `https://www.2embed.cc/embed/${id}`;
+    }
+    if (selectedServer === 'server_cc') {
       return isSeries 
         ? `https://vidsrc.cc/v2/embed/tv/${id}/${season}/${episode}`
         : `https://vidsrc.cc/v2/embed/movie/${id}`;
     }
-    if (selectedServer === 'server2') {
+    if (selectedServer === 'server_auto') {
       return isSeries
         ? `https://autoembed.co/tv/tmdb/${id}-${season}-${episode}`
         : `https://autoembed.co/movie/tmdb/${id}`;
     }
-    if (selectedServer === 'server3') {
+    if (selectedServer === 'server_xyz') {
       return isSeries
         ? `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${season}&episode=${episode}`
         : `https://vidsrc.xyz/embed/movie?tmdb=${id}`;
-    }
-    if (selectedServer === 'server4') {
-      return isSeries
-        ? `https://player.smashy.stream/tv/${id}?s=${season}&e=${episode}`
-        : `https://player.smashy.stream/movie/${id}`;
     }
     if (selectedServer === 'trailer') {
       return movie?.trailer_key
@@ -283,16 +294,37 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   };
 
   const servers = [
-    { id: 'server1', name: 'Server 1 (VidSrc HD)' },
-    { id: 'server2', name: 'Server 2 (AutoEmbed)' },
-    { id: 'server3', name: 'Server 3 (VidSrc Pro)' },
-    { id: 'server4', name: 'Server 4 (SmashyStream)' },
-    ...(movie?.trailer_key ? [{ id: 'trailer', name: 'Official Trailer (YT)' }] : []),
+    { id: 'server_vip', name: 'Server 1 (VidSrc VIP)' },
+    { id: 'server_su', name: 'Server 2 (Embed.su)' },
+    { id: 'server_2embed', name: 'Server 3 (2Embed)' },
+    { id: 'server_cc', name: 'Server 4 (VidSrc CC)' },
+    { id: 'server_auto', name: 'Server 5 (AutoEmbed)' },
+    { id: 'server_xyz', name: 'Server 6 (VidSrc XYZ)' },
+    ...(movie?.trailer_key ? [{ id: 'trailer', name: 'Official Trailer' }] : []),
     { id: 'html5', name: 'Demo Stream (Backup)' },
   ];
 
   return (
     <div className="space-y-3">
+      {/* Prominent Notice Above Player */}
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-amber-950/40 border border-amber-500/30 text-amber-200 text-xs sm:text-sm">
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="font-medium">
+            If stream fails to load, disable your AdBlocker/VPN or click <strong>Open in Player Window</strong>.
+          </span>
+        </div>
+        {embedSrc && (
+          <button
+            onClick={handleOpenExternalWindow}
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 hover:text-white font-bold text-xs border border-amber-500/40 transition-colors shrink-0"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Open Window</span>
+          </button>
+        )}
+      </div>
+
       {/* Streaming Server Controls & Episode Picker Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl glass-panel border border-white/10">
         {/* Server Selector Tabs */}
@@ -359,13 +391,13 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         onMouseLeave={() => isPlaying && selectedServer === 'html5' && setShowControls(false)}
         className="relative w-full aspect-video max-h-[85vh] bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-800 select-none group"
       >
-        {/* If Embed Server Selected (Server 1-4 or Trailer) */}
+        {/* If Embed Server Selected (Server 1-6 or Trailer) */}
         {selectedServer !== 'html5' && embedSrc ? (
           <div className="relative w-full h-full">
             {iframeLoading && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-none gap-3">
                 <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
-                <p className="text-xs text-slate-300 font-medium">Connecting to stream server...</p>
+                <p className="text-xs text-slate-300 font-medium">Connecting to streaming server...</p>
               </div>
             )}
             <iframe
@@ -550,13 +582,13 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         </div>
       </div>
 
-      {/* Fallback & External Window Direct Action Bar */}
+      {/* Direct Open in External Player Window */}
       {selectedServer !== 'html5' && embedSrc && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-2xl bg-purple-950/30 border border-purple-800/40 text-xs">
           <div className="flex items-center gap-2 text-slate-300">
             <AlertCircle className="w-4 h-4 text-purple-400 shrink-0" />
             <span>
-              If the stream is stuck or blocked by your browser/adblocker, switch servers above or open the direct stream window.
+              Having playback issues? Switch servers above (Server 1-6) or open in a direct dedicated player window.
             </span>
           </div>
 
