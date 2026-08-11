@@ -15,7 +15,8 @@ import {
   Sparkles,
   Server,
   Loader2,
-  ShieldAlert
+  ShieldAlert,
+  Zap
 } from 'lucide-react';
 import RatingBadge from './RatingBadge';
 import GenrePill from './GenrePill';
@@ -28,7 +29,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   const { addToast } = useToast();
   const [details, setDetails] = useState(movie || null);
   const [inWatchlist, setInWatchlist] = useState(movie?.is_in_watchlist || false);
-  const [selectedServer, setSelectedServer] = useState('server_vip');
+  const [selectedServer, setSelectedServer] = useState('embed_su');
   const [season, setSeason] = useState(1);
   const [episode, setEpisode] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -39,7 +40,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
     if (!isOpen || !movie?.id) return;
     setDetails(movie);
     setInWatchlist(movie.is_in_watchlist || false);
-    setSelectedServer('server_vip');
+    setSelectedServer('embed_su');
     setIframeLoading(true);
 
     const fetchFullDetails = async () => {
@@ -93,33 +94,23 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   const isSeries = details.type === 'series';
   const id = details.id;
 
-  // Stream embed URL generator
+  // Top 2 high-speed CDN embed URL generator
   const getEmbedUrl = () => {
     if (!id) return '';
-    if (selectedServer === 'server_vip') {
-      return isSeries 
-        ? `https://vidsrc.vip/embed/tv/${id}/${season}/${episode}`
-        : `https://vidsrc.vip/embed/movie/${id}`;
-    }
-    if (selectedServer === 'server_su') {
+    if (selectedServer === 'embed_su') {
       return isSeries 
         ? `https://embed.su/embed/tv/${id}/${season}/${episode}`
         : `https://embed.su/embed/movie/${id}`;
     }
-    if (selectedServer === 'server_2embed') {
+    if (selectedServer === 'vidsrc_vip') {
       return isSeries 
-        ? `https://www.2embed.cc/embedtv/${id}&s=${season}&e=${episode}`
-        : `https://www.2embed.cc/embed/${id}`;
-    }
-    if (selectedServer === 'server_cc') {
-      return isSeries 
-        ? `https://vidsrc.cc/v2/embed/tv/${id}/${season}/${episode}`
-        : `https://vidsrc.cc/v2/embed/movie/${id}`;
+        ? `https://vidsrc.vip/embed/tv/${id}/${season}/${episode}`
+        : `https://vidsrc.vip/embed/movie/${id}`;
     }
     if (selectedServer === 'trailer' && details.trailer_key) {
       return `https://www.youtube.com/embed/${details.trailer_key}?autoplay=1&rel=0`;
     }
-    return `https://vidsrc.vip/embed/movie/${id}`;
+    return `https://embed.su/embed/movie/${id}`;
   };
 
   const embedUrl = getEmbedUrl();
@@ -156,7 +147,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
               {iframeLoading && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-none gap-3">
                   <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
-                  <p className="text-xs text-slate-300 font-medium">Loading stream player...</p>
+                  <p className="text-xs text-slate-300 font-medium">Connecting to high-speed stream...</p>
                 </div>
               )}
               <iframe
@@ -166,6 +157,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                 allow="autoplay; encrypted-media; fullscreen; picture-in-picture; display-capture"
                 allowFullScreen={true}
                 referrerPolicy="origin"
+                loading="eager"
                 onLoad={() => setIframeLoading(false)}
                 className="w-full h-full border-0"
               />
@@ -189,49 +181,30 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
         </div>
 
         <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-2.5 bg-black/40 border-b border-white/5 flex-wrap">
+          {/* Top 2 Clean Server Selector */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[11px] font-bold text-slate-400 mr-1 flex items-center gap-1">
-              <Server className="w-3.5 h-3.5 text-purple-400" /> Source:
+              <Zap className="w-3.5 h-3.5 text-purple-400 fill-current" /> Stream:
             </span>
             <button
-              onClick={() => setSelectedServer('server_vip')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                selectedServer === 'server_vip'
-                  ? 'bg-purple-600 text-white'
+              onClick={() => setSelectedServer('embed_su')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                selectedServer === 'embed_su'
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
                   : 'bg-white/5 text-slate-300 hover:bg-white/10'
               }`}
             >
-              Server 1 (VIP)
+              Server 1 (Embed.su Fast)
             </button>
             <button
-              onClick={() => setSelectedServer('server_su')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                selectedServer === 'server_su'
-                  ? 'bg-purple-600 text-white'
+              onClick={() => setSelectedServer('vidsrc_vip')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                selectedServer === 'vidsrc_vip'
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
                   : 'bg-white/5 text-slate-300 hover:bg-white/10'
               }`}
             >
-              Server 2 (Embed.su)
-            </button>
-            <button
-              onClick={() => setSelectedServer('server_2embed')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                selectedServer === 'server_2embed'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              Server 3 (2Embed)
-            </button>
-            <button
-              onClick={() => setSelectedServer('server_cc')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                selectedServer === 'server_cc'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              Server 4 (VidSrc CC)
+              Server 2 (VidSrc VIP)
             </button>
             {details.trailer_key && (
               <button

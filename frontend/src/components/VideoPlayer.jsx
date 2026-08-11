@@ -17,8 +17,7 @@ import {
   Film,
   Server,
   ExternalLink,
-  RefreshCw,
-  AlertCircle,
+  Zap,
   ShieldAlert
 } from 'lucide-react';
 import api from '../services/api';
@@ -31,8 +30,8 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
-  // Server sources: 'server_vip', 'server_su', 'server_2embed', 'server_cc', 'server_auto', 'server_xyz', 'trailer', 'html5'
-  const [selectedServer, setSelectedServer] = useState('server_vip');
+  // Top 2 high-speed CDN servers: 'embed_su' (Primary), 'vidsrc_vip' (Fast Mirror), 'trailer', 'html5'
+  const [selectedServer, setSelectedServer] = useState('embed_su');
   const [season, setSeason] = useState(1);
   const [episode, setEpisode] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -50,14 +49,14 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   const controlsTimeoutRef = useRef(null);
   const isSeries = movie?.type === 'series';
 
-  // Reset iframe loading when server, season, or episode changes
+  // Reset loading indicator on server/episode change
   useEffect(() => {
     if (selectedServer !== 'html5') {
       setIframeLoading(true);
     }
   }, [selectedServer, season, episode]);
 
-  // Sync progress to backend
+  // Sync watch progress to backend
   const syncProgress = useCallback(async (time, totalDuration) => {
     if (!isAuthenticated || !movie?.id || !time) return;
     try {
@@ -71,7 +70,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
     }
   }, [isAuthenticated, movie?.id, duration]);
 
-  // Set initial seek position on load for HTML5 video
+  // HTML5 video metadata
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       const vidDuration = videoRef.current.duration;
@@ -149,7 +148,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
     }
   };
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts for HTML5 player
   useEffect(() => {
     if (selectedServer !== 'html5') return;
 
@@ -242,40 +241,20 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // Generate Stream Embed URL based on server and movie/series ID
+  // Top 2 high-speed streaming CDN URL generator with auto-play
   const getEmbedUrl = () => {
     const id = movie?.id;
     if (!id) return '';
 
-    if (selectedServer === 'server_vip') {
-      return isSeries 
-        ? `https://vidsrc.vip/embed/tv/${id}/${season}/${episode}`
-        : `https://vidsrc.vip/embed/movie/${id}`;
-    }
-    if (selectedServer === 'server_su') {
+    if (selectedServer === 'embed_su') {
       return isSeries 
         ? `https://embed.su/embed/tv/${id}/${season}/${episode}`
         : `https://embed.su/embed/movie/${id}`;
     }
-    if (selectedServer === 'server_2embed') {
+    if (selectedServer === 'vidsrc_vip') {
       return isSeries 
-        ? `https://www.2embed.cc/embedtv/${id}&s=${season}&e=${episode}`
-        : `https://www.2embed.cc/embed/${id}`;
-    }
-    if (selectedServer === 'server_cc') {
-      return isSeries 
-        ? `https://vidsrc.cc/v2/embed/tv/${id}/${season}/${episode}`
-        : `https://vidsrc.cc/v2/embed/movie/${id}`;
-    }
-    if (selectedServer === 'server_auto') {
-      return isSeries
-        ? `https://autoembed.co/tv/tmdb/${id}-${season}-${episode}`
-        : `https://autoembed.co/movie/tmdb/${id}`;
-    }
-    if (selectedServer === 'server_xyz') {
-      return isSeries
-        ? `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${season}&episode=${episode}`
-        : `https://vidsrc.xyz/embed/movie?tmdb=${id}`;
+        ? `https://vidsrc.vip/embed/tv/${id}/${season}/${episode}`
+        : `https://vidsrc.vip/embed/movie/${id}`;
     }
     if (selectedServer === 'trailer') {
       return movie?.trailer_key
@@ -294,19 +273,15 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   };
 
   const servers = [
-    { id: 'server_vip', name: 'Server 1 (VidSrc VIP)' },
-    { id: 'server_su', name: 'Server 2 (Embed.su)' },
-    { id: 'server_2embed', name: 'Server 3 (2Embed)' },
-    { id: 'server_cc', name: 'Server 4 (VidSrc CC)' },
-    { id: 'server_auto', name: 'Server 5 (AutoEmbed)' },
-    { id: 'server_xyz', name: 'Server 6 (VidSrc XYZ)' },
-    ...(movie?.trailer_key ? [{ id: 'trailer', name: 'Official Trailer' }] : []),
+    { id: 'embed_su', name: 'Server 1 (Embed.su Super CDN)', badge: 'Fastest' },
+    { id: 'vidsrc_vip', name: 'Server 2 (VidSrc VIP Ultra)', badge: 'Mirror' },
+    ...(movie?.trailer_key ? [{ id: 'trailer', name: 'Official Trailer (YT)' }] : []),
     { id: 'html5', name: 'Demo Stream (Backup)' },
   ];
 
   return (
     <div className="space-y-3">
-      {/* Prominent Notice Above Player */}
+      {/* Notice Banner */}
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-amber-950/40 border border-amber-500/30 text-amber-200 text-xs sm:text-sm">
         <div className="flex items-center gap-2">
           <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
@@ -317,7 +292,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         {embedSrc && (
           <button
             onClick={handleOpenExternalWindow}
-            className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 hover:text-white font-bold text-xs border border-amber-500/40 transition-colors shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 hover:text-white font-bold text-xs border border-amber-500/40 transition-colors shrink-0"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Open Window</span>
@@ -325,25 +300,30 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         )}
       </div>
 
-      {/* Streaming Server Controls & Episode Picker Header */}
+      {/* Stream Server Selector Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl glass-panel border border-white/10">
-        {/* Server Selector Tabs */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-300 mr-1.5">
-            <Server className="w-4 h-4 text-purple-400" />
-            <span className="hidden sm:inline">Stream Server:</span>
+        {/* Clean Top 2 Server Selector Tabs */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-300 mr-1">
+            <Zap className="w-4 h-4 text-purple-400 fill-current" />
+            <span>High-Speed CDN:</span>
           </div>
           {servers.map((s) => (
             <button
               key={s.id}
               onClick={() => setSelectedServer(s.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
                 selectedServer === s.id
-                  ? 'bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 text-white shadow-md shadow-purple-900/40 scale-105'
+                  ? 'bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 text-white shadow-lg shadow-purple-900/50 scale-105'
                   : 'bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white border border-white/5'
               }`}
             >
-              {s.name}
+              <span>{s.name}</span>
+              {s.badge && (
+                <span className="px-1.5 py-0.2 rounded-md bg-white/20 text-[10px] font-bold uppercase tracking-wider">
+                  {s.badge}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -391,13 +371,13 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         onMouseLeave={() => isPlaying && selectedServer === 'html5' && setShowControls(false)}
         className="relative w-full aspect-video max-h-[85vh] bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-800 select-none group"
       >
-        {/* If Embed Server Selected (Server 1-6 or Trailer) */}
+        {/* Fast CDN Stream Embed */}
         {selectedServer !== 'html5' && embedSrc ? (
           <div className="relative w-full h-full">
             {iframeLoading && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-none gap-3">
                 <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
-                <p className="text-xs text-slate-300 font-medium">Connecting to streaming server...</p>
+                <p className="text-xs text-slate-300 font-medium">Connecting to high-speed CDN stream...</p>
               </div>
             )}
             <iframe
@@ -407,6 +387,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
               allow="autoplay; encrypted-media; fullscreen; picture-in-picture; display-capture"
               allowFullScreen={true}
               referrerPolicy="origin"
+              loading="eager"
               onLoad={() => setIframeLoading(false)}
               className="w-full h-full border-0"
             />
@@ -418,6 +399,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
               ref={videoRef}
               src={movie?.video_url}
               poster={movie?.backdrop_url}
+              preload="auto"
               onLoadedMetadata={handleLoadedMetadata}
               onTimeUpdate={handleTimeUpdate}
               onWaiting={() => setIsBuffering(true)}
@@ -434,7 +416,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
               </div>
             )}
 
-            {/* Center Big Play/Pause Button on Pause */}
+            {/* Center Big Play Button on Pause */}
             {!isPlaying && !isBuffering && (
               <button
                 onClick={togglePlay}
@@ -582,13 +564,13 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         </div>
       </div>
 
-      {/* Direct Open in External Player Window */}
+      {/* Direct Open in External Player Window Fallback */}
       {selectedServer !== 'html5' && embedSrc && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-2xl bg-purple-950/30 border border-purple-800/40 text-xs">
           <div className="flex items-center gap-2 text-slate-300">
-            <AlertCircle className="w-4 h-4 text-purple-400 shrink-0" />
+            <Zap className="w-4 h-4 text-purple-400 shrink-0" />
             <span>
-              Having playback issues? Switch servers above (Server 1-6) or open in a direct dedicated player window.
+              Streaming from high-speed CDN. If your network or adblocker interrupts playback, use the dedicated player window.
             </span>
           </div>
 
