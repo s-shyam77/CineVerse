@@ -12,7 +12,8 @@ import {
   ExternalLink,
   Volume2,
   VolumeX,
-  Sparkles
+  Sparkles,
+  Server
 } from 'lucide-react';
 import RatingBadge from './RatingBadge';
 import GenrePill from './GenrePill';
@@ -25,6 +26,9 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   const { addToast } = useToast();
   const [details, setDetails] = useState(movie || null);
   const [inWatchlist, setInWatchlist] = useState(movie?.is_in_watchlist || false);
+  const [selectedServer, setSelectedServer] = useState('server1');
+  const [season, setSeason] = useState(1);
+  const [episode, setEpisode] = useState(1);
   const [loading, setLoading] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
 
@@ -32,6 +36,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
     if (!isOpen || !movie?.id) return;
     setDetails(movie);
     setInWatchlist(movie.is_in_watchlist || false);
+    setSelectedServer('server1');
 
     const fetchFullDetails = async () => {
       try {
@@ -77,10 +82,34 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
     }
   };
 
-  const trailerKey = details.trailer_key;
-  const embedUrl = trailerKey 
-    ? `https://www.youtube.com/embed/${trailerKey}?autoplay=1&mute=0&controls=1&rel=0`
-    : null;
+  const isSeries = details.type === 'series';
+  const id = details.id;
+
+  // Stream embed URL generator
+  const getEmbedUrl = () => {
+    if (!id) return '';
+    if (selectedServer === 'server1') {
+      return isSeries 
+        ? `https://vidsrc.cc/v2/embed/tv/${id}/${season}/${episode}`
+        : `https://vidsrc.cc/v2/embed/movie/${id}`;
+    }
+    if (selectedServer === 'server2') {
+      return isSeries
+        ? `https://autoembed.co/tv/tmdb/${id}-${season}-${episode}`
+        : `https://autoembed.co/movie/tmdb/${id}`;
+    }
+    if (selectedServer === 'server3') {
+      return isSeries
+        ? `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${season}&episode=${episode}`
+        : `https://vidsrc.xyz/embed/movie?tmdb=${id}`;
+    }
+    if (selectedServer === 'trailer' && details.trailer_key) {
+      return `https://www.youtube.com/embed/${details.trailer_key}?autoplay=1&rel=0`;
+    }
+    return `https://vidsrc.cc/v2/embed/movie/${id}`;
+  };
+
+  const embedUrl = getEmbedUrl();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 md:p-6 overflow-y-auto">
@@ -90,7 +119,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
         onClick={onClose}
       />
 
-      {/* Modal Dialog Card - Full screen on mobile, elegant card on tablet/desktop */}
+      {/* Modal Dialog Card */}
       <div className="relative w-full sm:max-w-4xl h-full sm:h-auto max-h-screen sm:max-h-[92vh] bg-[#0c1020] rounded-none sm:rounded-3xl overflow-hidden shadow-2xl border-0 sm:border border-white/15 z-10 animate-fade-in my-auto flex flex-col">
         
         {/* Close Button */}
@@ -101,13 +130,14 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
           <X className="w-5 h-5" />
         </button>
 
-        {/* Video Player / Backdrop Header Area */}
+        {/* Video Player Header Area */}
         <div className="relative w-full aspect-video sm:max-h-[380px] md:max-h-[420px] bg-black shrink-0 overflow-hidden">
           {embedUrl ? (
             <iframe
+              key={`${selectedServer}-${season}-${episode}`}
               src={embedUrl}
               title={details.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
               className="w-full h-full border-0"
             />
@@ -119,14 +149,81 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#0c1020] via-black/40 to-transparent" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Link
-                  to={`/watch/${details.id}`}
-                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-purple-600/90 text-white flex items-center justify-center shadow-2xl hover:scale-110 hover:bg-purple-500 transition-all"
-                >
-                  <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-current ml-1" />
-                </Link>
-              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Server Selector Bar in Modal */}
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-2.5 bg-black/40 border-b border-white/5 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-bold text-slate-400 mr-1 flex items-center gap-1">
+              <Server className="w-3.5 h-3.5 text-purple-400" /> Source:
+            </span>
+            <button
+              onClick={() => setSelectedServer('server1')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                selectedServer === 'server1'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              Server 1 (HD)
+            </button>
+            <button
+              onClick={() => setSelectedServer('server2')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                selectedServer === 'server2'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              Server 2 (AutoEmbed)
+            </button>
+            <button
+              onClick={() => setSelectedServer('server3')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                selectedServer === 'server3'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              Server 3 (VidSrc)
+            </button>
+            {details.trailer_key && (
+              <button
+                onClick={() => setSelectedServer('trailer')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  selectedServer === 'trailer'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                Trailer
+              </button>
+            )}
+          </div>
+
+          {/* Series Episode Selector in Modal */}
+          {isSeries && selectedServer !== 'trailer' && (
+            <div className="flex items-center gap-1.5 text-[11px]">
+              <select
+                value={season}
+                onChange={(e) => setSeason(Number(e.target.value))}
+                className="bg-slate-800 text-white px-2 py-0.5 rounded border border-white/10 text-xs"
+              >
+                {[1, 2, 3, 4, 5, 6].map((s) => (
+                  <option key={s} value={s}>S{s}</option>
+                ))}
+              </select>
+              <select
+                value={episode}
+                onChange={(e) => setEpisode(Number(e.target.value))}
+                className="bg-slate-800 text-white px-2 py-0.5 rounded border border-white/10 text-xs"
+              >
+                {Array.from({ length: 24 }).map((_, i) => (
+                  <option key={i + 1} value={i + 1}>Ep {i + 1}</option>
+                ))}
+              </select>
             </div>
           )}
         </div>
@@ -162,7 +259,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                 className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 text-white font-bold text-sm hover:scale-105 transition-all shadow-xl shadow-purple-900/40"
               >
                 <Play className="w-4 h-4 fill-current" />
-                Watch Full
+                Full Cinema Page
               </Link>
 
               <button
