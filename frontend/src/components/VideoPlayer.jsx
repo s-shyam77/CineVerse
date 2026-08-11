@@ -20,7 +20,8 @@ import {
   Zap,
   ShieldCheck,
   Globe,
-  Youtube
+  Youtube,
+  AlertTriangle
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -40,7 +41,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
-  // Mode: 'youtube' (Default YouTube-First Engine), 'direct' (HTML5 MP4), 'vidsrc_cc' (External Cinema)
+  // Mode: 'youtube' (Default), 'direct' (HTML5 MP4), 'vidsrc_cc' (External Cinema)
   const [selectedServer, setSelectedServer] = useState('youtube');
   const [season, setSeason] = useState(1);
   const [episode, setEpisode] = useState(1);
@@ -54,6 +55,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   const [showControls, setShowControls] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
   const [iframeLoading, setIframeLoading] = useState(true);
+  const [embedError, setEmbedError] = useState(false);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
 
   const controlsTimeoutRef = useRef(null);
@@ -62,8 +64,14 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   // Direct MP4 fallback URL
   const directStreamUrl = movie?.video_url || DIRECT_DEMO_STREAMS[(movie?.id || 1) % DIRECT_DEMO_STREAMS.length];
 
-  // Reset loading indicator on server/episode change
+  // Direct YouTube URL (for opening in new tab or fallback)
+  const youtubeDirectUrl = movie?.trailer_key 
+    ? `https://www.youtube.com/watch?v=${movie.trailer_key}`
+    : `https://www.youtube.com/results?search_query=${encodeURIComponent((movie?.title || 'movie') + (isSeries ? ` season ${season} episode ${episode}` : ' full movie trailer'))}`;
+
+  // Reset loading and error states on server/episode change
   useEffect(() => {
+    setEmbedError(false);
     if (selectedServer !== 'direct') {
       setIframeLoading(true);
     }
@@ -254,18 +262,15 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // YouTube-First URL Generator with Smart Query Fallback
+  // YouTube / Embed URL generator
   const getEmbedUrl = () => {
     const id = movie?.id;
-    const title = movie?.title || '';
 
     if (selectedServer === 'youtube') {
-      if (movie?.trailer_key) {
-        return `https://www.youtube.com/embed/${movie.trailer_key}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+      if (movie?.trailer_key && movie.trailer_key.length >= 6) {
+        return `https://www.youtube-nocookie.com/embed/${movie.trailer_key}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
       }
-      // Fallback search list embed for title
-      const query = encodeURIComponent(`${title} official trailer`);
-      return `https://www.youtube-nocookie.com/embed?listType=search&list=${query}&autoplay=1&rel=0`;
+      return null; // Return null to render the clean direct YouTube fallback card!
     }
 
     if (selectedServer === 'vidsrc_cc') {
@@ -279,6 +284,10 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
 
   const embedSrc = getEmbedUrl();
 
+  const handleOpenYouTubeDirect = () => {
+    window.open(youtubeDirectUrl, '_blank', 'noopener,noreferrer');
+  };
+
   const handlePlayExternal = () => {
     const externalUrl = isSeries 
       ? `https://vidsrc.cc/v2/embed/tv/${movie?.id}/${season}/${episode}`
@@ -287,31 +296,42 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   };
 
   const servers = [
-    { id: 'youtube', name: 'YouTube HD Stream (100% Guaranteed)', badge: 'Recommended', icon: Youtube },
+    { id: 'youtube', name: 'YouTube Stream', badge: 'HD', icon: Youtube },
     { id: 'direct', name: 'Direct MP4 Stream', badge: 'HTML5' },
-    { id: 'vidsrc_cc', name: 'Full Cinema Server (Embed)', badge: 'Mirror' },
+    { id: 'vidsrc_cc', name: 'Full Cinema Server', badge: 'Mirror' },
   ];
 
   return (
     <div className="space-y-3">
-      {/* YouTube-First Engine Notice & External HD Player Action Bar */}
+      {/* Top Banner Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-red-950/80 via-slate-900/90 to-purple-950/80 border border-red-500/30 text-xs sm:text-sm">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+          <Youtube className="w-5 h-5 text-red-500 shrink-0" />
           <div>
-            <span className="font-bold text-white">YouTube-First Ultra HD Engine Active.</span>
+            <span className="font-bold text-white">YouTube HD Stream Engine.</span>
             <span className="text-slate-300 ml-1">
-              Zero connection errors, instant loading, and 100% reliable cross-device streaming.
+              Watch embedded below or launch directly on YouTube.
             </span>
           </div>
         </div>
-        <button
-          onClick={handlePlayExternal}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 hover:scale-105 text-white font-bold text-xs shadow-lg shadow-purple-900/50 transition-all shrink-0 cursor-pointer"
-        >
-          <ExternalLink className="w-4 h-4" />
-          <span>Play Full Cinema Server ↗</span>
-        </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleOpenYouTubeDirect}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-md shadow-red-900/40 transition-all shrink-0 cursor-pointer"
+          >
+            <Youtube className="w-3.5 h-3.5" />
+            <span>Watch on YouTube ↗</span>
+          </button>
+
+          <button
+            onClick={handlePlayExternal}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-purple-300 hover:text-white font-bold text-xs border border-white/10 transition-all shrink-0 cursor-pointer"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Cinema Server ↗</span>
+          </button>
+        </div>
       </div>
 
       {/* Stream Server Selector Header */}
@@ -386,20 +406,85 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         onMouseLeave={() => isPlaying && selectedServer === 'direct' && setShowControls(false)}
         className="relative w-full aspect-video max-h-[85vh] bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-800 select-none group"
       >
-        {/* YouTube-First Engine (Default) or Embed Server */}
-        {selectedServer !== 'direct' ? (
+        {/* If YouTube Selected and Embed URL is valid and no error */}
+        {selectedServer === 'youtube' && embedSrc && !embedError ? (
           <div className="relative w-full h-full">
             {iframeLoading && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm pointer-events-none gap-3">
                 <Loader2 className="w-10 h-10 text-red-500 animate-spin" />
-                <p className="text-xs text-slate-300 font-medium">Connecting to stream...</p>
+                <p className="text-xs text-slate-300 font-medium">Loading YouTube Stream...</p>
+              </div>
+            )}
+            <iframe
+              key={`${selectedServer}-${movie?.id}`}
+              src={embedSrc}
+              title={movie?.title || 'Video Stream'}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen={true}
+              referrerPolicy="no-referrer"
+              loading="eager"
+              onLoad={() => setIframeLoading(false)}
+              onError={() => setEmbedError(true)}
+              className="w-full h-full border-0"
+            />
+          </div>
+        ) : selectedServer === 'youtube' ? (
+          /* Error 153 / No Embed Key Fallback UI */
+          <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+            <img
+              src={movie?.backdrop_url || movie?.poster_url}
+              alt={movie?.title}
+              className="absolute inset-0 w-full h-full object-cover filter blur-sm scale-105 opacity-40"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/40" />
+
+            <div className="relative z-20 flex flex-col items-center text-center p-6 max-w-lg space-y-4 animate-fade-in">
+              <div className="w-16 h-16 rounded-2xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-500 shadow-xl shadow-red-950/60">
+                <Youtube className="w-8 h-8 fill-current" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-xl sm:text-2xl font-black text-white font-['Outfit']">
+                  {movie?.title}
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300">
+                  Direct YouTube stream ready. Click below to stream in full 4K / 1080p on YouTube without embedding restrictions.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full justify-center pt-2">
+                <button
+                  onClick={handleOpenYouTubeDirect}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm shadow-xl shadow-red-900/50 hover:scale-105 transition-all cursor-pointer"
+                >
+                  <Youtube className="w-5 h-5 fill-current" />
+                  <span>Watch Full Video on YouTube ↗</span>
+                </button>
+
+                <button
+                  onClick={() => setSelectedServer('direct')}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl glass-panel text-slate-200 hover:text-white hover:bg-white/15 text-xs font-semibold border border-white/10 transition-all cursor-pointer"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Play Direct MP4</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : selectedServer === 'vidsrc_cc' ? (
+          /* Third-Party Embed Server Frame */
+          <div className="relative w-full h-full">
+            {iframeLoading && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm pointer-events-none gap-3">
+                <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+                <p className="text-xs text-slate-300 font-medium">Connecting to cinema server...</p>
               </div>
             )}
             <iframe
               key={`${selectedServer}-${season}-${episode}`}
               src={embedSrc}
               title={movie?.title || 'Video Stream'}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allow="autoplay; encrypted-media; fullscreen; picture-in-picture; display-capture"
               allowFullScreen={true}
               referrerPolicy="no-referrer"
               loading="eager"

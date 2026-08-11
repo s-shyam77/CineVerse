@@ -43,6 +43,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   const [episode, setEpisode] = useState(1);
   const [loading, setLoading] = useState(false);
   const [iframeLoading, setIframeLoading] = useState(true);
+  const [embedError, setEmbedError] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const videoRef = useRef(null);
 
@@ -52,6 +53,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
     setInWatchlist(movie.is_in_watchlist || false);
     setSelectedServer('youtube');
     setIframeLoading(true);
+    setEmbedError(false);
 
     const fetchFullDetails = async () => {
       try {
@@ -72,6 +74,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   }, [isOpen, movie]);
 
   useEffect(() => {
+    setEmbedError(false);
     if (selectedServer !== 'direct') {
       setIframeLoading(true);
     }
@@ -107,15 +110,17 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   const id = details.id;
   const directStreamUrl = details.video_url || DIRECT_DEMO_STREAMS[(details.id || 1) % DIRECT_DEMO_STREAMS.length];
 
-  // YouTube-First URL Generator with Smart Fallback
+  const youtubeDirectUrl = details.trailer_key 
+    ? `https://www.youtube.com/watch?v=${details.trailer_key}`
+    : `https://www.youtube.com/results?search_query=${encodeURIComponent((details.title || 'movie') + (isSeries ? ` season ${season} episode ${episode}` : ' full movie trailer'))}`;
+
+  // YouTube / Embed URL Generator
   const getEmbedUrl = () => {
-    const title = details.title || '';
     if (selectedServer === 'youtube') {
-      if (details.trailer_key) {
-        return `https://www.youtube.com/embed/${details.trailer_key}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+      if (details.trailer_key && details.trailer_key.length >= 6) {
+        return `https://www.youtube-nocookie.com/embed/${details.trailer_key}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
       }
-      const query = encodeURIComponent(`${title} official trailer`);
-      return `https://www.youtube-nocookie.com/embed?listType=search&list=${query}&autoplay=1&rel=0`;
+      return null;
     }
 
     if (selectedServer === 'vidsrc_cc') {
@@ -128,6 +133,10 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   };
 
   const embedUrl = getEmbedUrl();
+
+  const handleOpenYouTubeDirect = () => {
+    window.open(youtubeDirectUrl, '_blank', 'noopener,noreferrer');
+  };
 
   const handlePlayExternal = () => {
     const externalUrl = isSeries
@@ -170,16 +179,16 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                 playsInline
               />
             </div>
-          ) : embedUrl ? (
+          ) : selectedServer === 'youtube' && embedUrl && !embedError ? (
             <>
               {iframeLoading && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm pointer-events-none gap-3">
                   <Loader2 className="w-8 h-8 text-red-500 animate-spin" />
-                  <p className="text-xs text-slate-300 font-medium">Connecting to stream...</p>
+                  <p className="text-xs text-slate-300 font-medium">Connecting to YouTube stream...</p>
                 </div>
               )}
               <iframe
-                key={`${selectedServer}-${season}-${episode}`}
+                key={`${selectedServer}-${details?.id}`}
                 src={embedUrl}
                 title={details.title}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -187,9 +196,64 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                 referrerPolicy="no-referrer"
                 loading="eager"
                 onLoad={() => setIframeLoading(false)}
+                onError={() => setEmbedError(true)}
                 className="w-full h-full border-0"
               />
             </>
+          ) : selectedServer === 'youtube' ? (
+            /* YouTube Error 153 / No Embed Key Fallback UI */
+            <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+              <img
+                src={details.backdrop_url || details.poster_url}
+                alt={details.title}
+                className="absolute inset-0 w-full h-full object-cover filter blur-sm scale-105 opacity-40"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/40" />
+
+              <div className="relative z-20 flex flex-col items-center text-center p-6 max-w-md space-y-3 animate-fade-in">
+                <div className="w-14 h-14 rounded-2xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-500 shadow-xl shadow-red-950/60">
+                  <Youtube className="w-7 h-7 fill-current" />
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="text-lg sm:text-xl font-black text-white font-['Outfit'] truncate max-w-xs sm:max-w-sm">
+                    {details.title}
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    Watch in 4K / 1080p on YouTube or play direct MP4 below.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full justify-center pt-1">
+                  <button
+                    onClick={handleOpenYouTubeDirect}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg shadow-red-900/50 hover:scale-105 transition-all cursor-pointer"
+                  >
+                    <Youtube className="w-4 h-4 fill-current" />
+                    <span>Watch on YouTube ↗</span>
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedServer('direct')}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl glass-panel text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all cursor-pointer"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>Play Direct MP4</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : selectedServer === 'vidsrc_cc' ? (
+            <iframe
+              key={`${selectedServer}-${season}-${episode}`}
+              src={embedUrl}
+              title={details.title}
+              allow="autoplay; encrypted-media; fullscreen; picture-in-picture; display-capture"
+              allowFullScreen={true}
+              referrerPolicy="no-referrer"
+              loading="eager"
+              className="w-full h-full border-0"
+            />
           ) : (
             <div className="relative w-full h-full">
               <img
@@ -202,17 +266,17 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
           )}
         </div>
 
-        {/* Notice & Server Selector Bar in Modal */}
+        {/* Top Header Notice Bar */}
         <div className="px-4 sm:px-6 py-2 bg-gradient-to-r from-red-950/80 to-purple-950/80 border-b border-red-500/20 text-[11px] text-red-200 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="text-slate-200 font-medium">YouTube-First Ultra HD Stream Active</span>
+            <Youtube className="w-3.5 h-3.5 text-red-400 shrink-0" />
+            <span className="text-slate-200 font-medium">YouTube HD Stream Engine</span>
           </div>
           <button
-            onClick={handlePlayExternal}
-            className="text-[11px] font-bold text-purple-300 hover:text-white flex items-center gap-1 cursor-pointer"
+            onClick={handleOpenYouTubeDirect}
+            className="text-[11px] font-bold text-red-400 hover:text-white flex items-center gap-1 cursor-pointer"
           >
-            <span>Play Full Cinema Server ↗</span>
+            <span>Watch on YouTube ↗</span>
           </button>
         </div>
 
