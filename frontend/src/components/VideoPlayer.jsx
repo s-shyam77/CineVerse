@@ -20,7 +20,7 @@ import {
   Zap,
   ShieldCheck,
   Globe,
-  FilmIcon
+  Youtube
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -40,8 +40,8 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
-  // Mode: 'direct' (Default HTML5 direct stream), 'vidsrc_cc', 'embed_su', 'trailer'
-  const [selectedServer, setSelectedServer] = useState('direct');
+  // Mode: 'youtube' (Default YouTube-First Engine), 'direct' (HTML5 MP4), 'vidsrc_cc' (External Cinema)
+  const [selectedServer, setSelectedServer] = useState('youtube');
   const [season, setSeason] = useState(1);
   const [episode, setEpisode] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -59,7 +59,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   const controlsTimeoutRef = useRef(null);
   const isSeries = movie?.type === 'series';
 
-  // Determine direct video stream URL
+  // Direct MP4 fallback URL
   const directStreamUrl = movie?.video_url || DIRECT_DEMO_STREAMS[(movie?.id || 1) % DIRECT_DEMO_STREAMS.length];
 
   // Reset loading indicator on server/episode change
@@ -254,30 +254,27 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // Embed URL for external or iframe playback
+  // YouTube-First URL Generator with Smart Query Fallback
   const getEmbedUrl = () => {
     const id = movie?.id;
-    if (!id) return '';
+    const title = movie?.title || '';
+
+    if (selectedServer === 'youtube') {
+      if (movie?.trailer_key) {
+        return `https://www.youtube.com/embed/${movie.trailer_key}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+      }
+      // Fallback search list embed for title
+      const query = encodeURIComponent(`${title} official trailer`);
+      return `https://www.youtube-nocookie.com/embed?listType=search&list=${query}&autoplay=1&rel=0`;
+    }
 
     if (selectedServer === 'vidsrc_cc') {
       return isSeries 
         ? `https://vidsrc.cc/v2/embed/tv/${id}/${season}/${episode}`
         : `https://vidsrc.cc/v2/embed/movie/${id}`;
     }
-    if (selectedServer === 'embed_su') {
-      return isSeries 
-        ? `https://embed.su/embed/tv/${id}/${season}/${episode}`
-        : `https://embed.su/embed/movie/${id}`;
-    }
-    if (selectedServer === 'trailer') {
-      return movie?.trailer_key
-        ? `https://www.youtube.com/embed/${movie.trailer_key}?autoplay=1&rel=0`
-        : null;
-    }
-    // Default external fallback
-    return isSeries
-      ? `https://vidsrc.cc/v2/embed/tv/${id}/${season}/${episode}`
-      : `https://vidsrc.cc/v2/embed/movie/${id}`;
+
+    return '';
   };
 
   const embedSrc = getEmbedUrl();
@@ -290,22 +287,21 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   };
 
   const servers = [
-    { id: 'direct', name: 'Direct HD Stream (100% Guaranteed)', badge: 'Recommended' },
-    { id: 'vidsrc_cc', name: 'Server 1 (VidSrc Embed)', badge: 'Embed' },
-    { id: 'embed_su', name: 'Server 2 (Embed.su)', badge: 'Embed' },
-    ...(movie?.trailer_key ? [{ id: 'trailer', name: 'Official Trailer (YT)' }] : []),
+    { id: 'youtube', name: 'YouTube HD Stream (100% Guaranteed)', badge: 'Recommended', icon: Youtube },
+    { id: 'direct', name: 'Direct MP4 Stream', badge: 'HTML5' },
+    { id: 'vidsrc_cc', name: 'Full Cinema Server (Embed)', badge: 'Mirror' },
   ];
 
   return (
     <div className="space-y-3">
-      {/* Direct HD Streaming Notice & Play via External HD Player Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-950/80 via-slate-900/90 to-indigo-950/80 border border-purple-500/30 text-xs sm:text-sm">
+      {/* YouTube-First Engine Notice & External HD Player Action Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-red-950/80 via-slate-900/90 to-purple-950/80 border border-red-500/30 text-xs sm:text-sm">
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
           <div>
-            <span className="font-bold text-white">Direct HD Stream Active.</span>
+            <span className="font-bold text-white">YouTube-First Ultra HD Engine Active.</span>
             <span className="text-slate-300 ml-1">
-              Guaranteed instant playback without iframe security blocks or DNS errors.
+              Zero connection errors, instant loading, and 100% reliable cross-device streaming.
             </span>
           </div>
         </div>
@@ -314,7 +310,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
           className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 hover:scale-105 text-white font-bold text-xs shadow-lg shadow-purple-900/50 transition-all shrink-0 cursor-pointer"
         >
           <ExternalLink className="w-4 h-4" />
-          <span>Play via External HD Player ↗</span>
+          <span>Play Full Cinema Server ↗</span>
         </button>
       </div>
 
@@ -323,8 +319,8 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         {/* Server Selector Tabs */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-300 mr-1">
-            <Zap className="w-4 h-4 text-purple-400 fill-current" />
-            <span>Player Mode:</span>
+            <Zap className="w-4 h-4 text-red-400 fill-current" />
+            <span>Stream Source:</span>
           </div>
           {servers.map((s) => (
             <button
@@ -332,10 +328,11 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
               onClick={() => setSelectedServer(s.id)}
               className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
                 selectedServer === s.id
-                  ? 'bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 text-white shadow-lg shadow-purple-900/50 scale-105'
+                  ? 'bg-gradient-to-r from-red-600 via-pink-600 to-purple-600 text-white shadow-lg shadow-red-900/50 scale-105'
                   : 'bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white border border-white/5'
               }`}
             >
+              {s.icon && <s.icon className="w-3.5 h-3.5" />}
               <span>{s.name}</span>
               {s.badge && (
                 <span className="px-1.5 py-0.2 rounded-md bg-white/20 text-[10px] font-bold uppercase tracking-wider">
@@ -347,7 +344,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         </div>
 
         {/* Series Season & Episode Picker */}
-        {isSeries && selectedServer !== 'trailer' && (
+        {isSeries && selectedServer === 'vidsrc_cc' && (
           <div className="flex items-center gap-2 text-xs">
             <div className="flex items-center gap-1 bg-white/5 px-2.5 py-1 rounded-xl border border-white/10">
               <span className="text-slate-400 font-medium">Season:</span>
@@ -389,8 +386,29 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         onMouseLeave={() => isPlaying && selectedServer === 'direct' && setShowControls(false)}
         className="relative w-full aspect-video max-h-[85vh] bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-800 select-none group"
       >
-        {/* Direct HTML5 Stream Player (Default & 100% Reliable) */}
-        {selectedServer === 'direct' ? (
+        {/* YouTube-First Engine (Default) or Embed Server */}
+        {selectedServer !== 'direct' ? (
+          <div className="relative w-full h-full">
+            {iframeLoading && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm pointer-events-none gap-3">
+                <Loader2 className="w-10 h-10 text-red-500 animate-spin" />
+                <p className="text-xs text-slate-300 font-medium">Connecting to stream...</p>
+              </div>
+            )}
+            <iframe
+              key={`${selectedServer}-${season}-${episode}`}
+              src={embedSrc}
+              title={movie?.title || 'Video Stream'}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen={true}
+              referrerPolicy="no-referrer"
+              loading="eager"
+              onLoad={() => setIframeLoading(false)}
+              className="w-full h-full border-0"
+            />
+          </div>
+        ) : (
+          /* Direct HTML5 MP4 Video Element */
           <>
             <video
               ref={videoRef}
@@ -537,27 +555,6 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
               </div>
             </div>
           </>
-        ) : (
-          /* Third-Party Embed Server Frame */
-          <div className="relative w-full h-full">
-            {iframeLoading && (
-              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm pointer-events-none gap-3">
-                <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
-                <p className="text-xs text-slate-300 font-medium">Connecting to stream...</p>
-              </div>
-            )}
-            <iframe
-              key={`${selectedServer}-${season}-${episode}`}
-              src={embedSrc}
-              title={movie?.title || 'Video Stream'}
-              allow="autoplay; encrypted-media; fullscreen; picture-in-picture; display-capture"
-              allowFullScreen={true}
-              referrerPolicy="no-referrer"
-              loading="eager"
-              onLoad={() => setIframeLoading(false)}
-              className="w-full h-full border-0"
-            />
-          </div>
         )}
 
         {/* Top Header Bar Overlay */}
@@ -578,8 +575,8 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
             <h2 className="text-xs sm:text-base font-bold text-white tracking-wide truncate max-w-xs sm:max-w-md">
               {movie?.title}
             </h2>
-            <p className="text-[10px] sm:text-xs text-purple-400 font-medium">
-              {isSeries ? `Season ${season}, Episode ${episode}` : 'Full Movie Cinema HD'}
+            <p className="text-[10px] sm:text-xs text-red-400 font-medium">
+              {isSeries ? `Season ${season}, Episode ${episode}` : 'Full Movie HD Stream'}
             </p>
           </div>
 

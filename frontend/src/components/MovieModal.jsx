@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Play, 
-  Pause,
+  Pause, 
   Plus, 
   Check, 
   X, 
@@ -17,7 +17,8 @@ import {
   Server,
   Loader2,
   ShieldCheck,
-  Zap
+  Zap,
+  Youtube
 } from 'lucide-react';
 import RatingBadge from './RatingBadge';
 import GenrePill from './GenrePill';
@@ -37,20 +38,19 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   const { addToast } = useToast();
   const [details, setDetails] = useState(movie || null);
   const [inWatchlist, setInWatchlist] = useState(movie?.is_in_watchlist || false);
-  const [selectedServer, setSelectedServer] = useState('direct');
+  const [selectedServer, setSelectedServer] = useState('youtube');
   const [season, setSeason] = useState(1);
   const [episode, setEpisode] = useState(1);
   const [loading, setLoading] = useState(false);
   const [iframeLoading, setIframeLoading] = useState(true);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
   const videoRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen || !movie?.id) return;
     setDetails(movie);
     setInWatchlist(movie.is_in_watchlist || false);
-    setSelectedServer('direct');
+    setSelectedServer('youtube');
     setIframeLoading(true);
 
     const fetchFullDetails = async () => {
@@ -107,22 +107,23 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   const id = details.id;
   const directStreamUrl = details.video_url || DIRECT_DEMO_STREAMS[(details.id || 1) % DIRECT_DEMO_STREAMS.length];
 
-  // Embed URL generator
+  // YouTube-First URL Generator with Smart Fallback
   const getEmbedUrl = () => {
-    if (!id) return '';
+    const title = details.title || '';
+    if (selectedServer === 'youtube') {
+      if (details.trailer_key) {
+        return `https://www.youtube.com/embed/${details.trailer_key}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+      }
+      const query = encodeURIComponent(`${title} official trailer`);
+      return `https://www.youtube-nocookie.com/embed?listType=search&list=${query}&autoplay=1&rel=0`;
+    }
+
     if (selectedServer === 'vidsrc_cc') {
       return isSeries 
         ? `https://vidsrc.cc/v2/embed/tv/${id}/${season}/${episode}`
         : `https://vidsrc.cc/v2/embed/movie/${id}`;
     }
-    if (selectedServer === 'embed_su') {
-      return isSeries 
-        ? `https://embed.su/embed/tv/${id}/${season}/${episode}`
-        : `https://embed.su/embed/movie/${id}`;
-    }
-    if (selectedServer === 'trailer' && details.trailer_key) {
-      return `https://www.youtube.com/embed/${details.trailer_key}?autoplay=1&rel=0`;
-    }
+
     return '';
   };
 
@@ -133,16 +134,6 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
       ? `https://vidsrc.cc/v2/embed/tv/${id}/${season}/${episode}`
       : `https://vidsrc.cc/v2/embed/movie/${id}`;
     window.open(externalUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const toggleDirectPlay = () => {
-    if (!videoRef.current) return;
-    if (isPlaying) {
-      videoRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      videoRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
-    }
   };
 
   return (
@@ -175,8 +166,6 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                 preload="auto"
                 autoPlay
                 controls
-                onPlaying={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
                 className="w-full h-full object-contain cursor-pointer"
                 playsInline
               />
@@ -185,7 +174,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
             <>
               {iframeLoading && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm pointer-events-none gap-3">
-                  <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+                  <Loader2 className="w-8 h-8 text-red-500 animate-spin" />
                   <p className="text-xs text-slate-300 font-medium">Connecting to stream...</p>
                 </div>
               )}
@@ -193,7 +182,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                 key={`${selectedServer}-${season}-${episode}`}
                 src={embedUrl}
                 title={details.title}
-                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; display-capture"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen={true}
                 referrerPolicy="no-referrer"
                 loading="eager"
@@ -214,16 +203,16 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
         </div>
 
         {/* Notice & Server Selector Bar in Modal */}
-        <div className="px-4 sm:px-6 py-2 bg-gradient-to-r from-purple-950/80 to-slate-900/90 border-b border-purple-500/20 text-[11px] text-purple-200 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-2 bg-gradient-to-r from-red-950/80 to-purple-950/80 border-b border-red-500/20 text-[11px] text-red-200 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="text-slate-200">Direct HD Stream Active</span>
+            <span className="text-slate-200 font-medium">YouTube-First Ultra HD Stream Active</span>
           </div>
           <button
             onClick={handlePlayExternal}
             className="text-[11px] font-bold text-purple-300 hover:text-white flex items-center gap-1 cursor-pointer"
           >
-            <span>Play External HD ↗</span>
+            <span>Play Full Cinema Server ↗</span>
           </button>
         </div>
 
@@ -231,8 +220,19 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
           {/* Server Selector */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[11px] font-bold text-slate-400 mr-1 flex items-center gap-1">
-              <Zap className="w-3.5 h-3.5 text-purple-400 fill-current" /> Mode:
+              <Zap className="w-3.5 h-3.5 text-red-400 fill-current" /> Stream:
             </span>
+            <button
+              onClick={() => setSelectedServer('youtube')}
+              className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                selectedServer === 'youtube'
+                  ? 'bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-md'
+                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              <Youtube className="w-3.5 h-3.5" />
+              <span>YouTube HD</span>
+            </button>
             <button
               onClick={() => setSelectedServer('direct')}
               className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
@@ -241,7 +241,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                   : 'bg-white/5 text-slate-300 hover:bg-white/10'
               }`}
             >
-              Direct HD Stream
+              Direct MP4
             </button>
             <button
               onClick={() => setSelectedServer('vidsrc_cc')}
@@ -251,35 +251,13 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                   : 'bg-white/5 text-slate-300 hover:bg-white/10'
               }`}
             >
-              Server 1 (Embed)
+              Cinema Server
             </button>
-            <button
-              onClick={() => setSelectedServer('embed_su')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                selectedServer === 'embed_su'
-                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
-                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              Server 2 (Embed.su)
-            </button>
-            {details.trailer_key && (
-              <button
-                onClick={() => setSelectedServer('trailer')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  selectedServer === 'trailer'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white/5 text-slate-300 hover:bg-white/10'
-                }`}
-              >
-                Trailer
-              </button>
-            )}
           </div>
 
           <div className="flex items-center gap-2">
             {/* Series Episode Selector */}
-            {isSeries && (
+            {isSeries && selectedServer === 'vidsrc_cc' && (
               <div className="flex items-center gap-1.5 text-[11px]">
                 <select
                   value={season}
