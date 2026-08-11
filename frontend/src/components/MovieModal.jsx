@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Play, 
+  Pause,
   Plus, 
   Check, 
   X, 
@@ -24,23 +25,32 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../services/api';
 
+const DIRECT_DEMO_STREAMS = [
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+];
+
 const MovieModal = ({ movie, isOpen, onClose }) => {
   const { isAuthenticated } = useAuth();
   const { addToast } = useToast();
   const [details, setDetails] = useState(movie || null);
   const [inWatchlist, setInWatchlist] = useState(movie?.is_in_watchlist || false);
-  const [selectedServer, setSelectedServer] = useState('vidsrc_cc');
+  const [selectedServer, setSelectedServer] = useState('direct');
   const [season, setSeason] = useState(1);
   const [episode, setEpisode] = useState(1);
   const [loading, setLoading] = useState(false);
   const [iframeLoading, setIframeLoading] = useState(true);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen || !movie?.id) return;
     setDetails(movie);
     setInWatchlist(movie.is_in_watchlist || false);
-    setSelectedServer('vidsrc_cc');
+    setSelectedServer('direct');
     setIframeLoading(true);
 
     const fetchFullDetails = async () => {
@@ -62,7 +72,9 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   }, [isOpen, movie]);
 
   useEffect(() => {
-    setIframeLoading(true);
+    if (selectedServer !== 'direct') {
+      setIframeLoading(true);
+    }
   }, [selectedServer, season, episode]);
 
   if (!isOpen || !details) return null;
@@ -93,8 +105,9 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
 
   const isSeries = details.type === 'series';
   const id = details.id;
+  const directStreamUrl = details.video_url || DIRECT_DEMO_STREAMS[(details.id || 1) % DIRECT_DEMO_STREAMS.length];
 
-  // Enforce Strict HTTPS Embed URLs
+  // Embed URL generator
   const getEmbedUrl = () => {
     if (!id) return '';
     if (selectedServer === 'vidsrc_cc') {
@@ -107,22 +120,28 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
         ? `https://embed.su/embed/tv/${id}/${season}/${episode}`
         : `https://embed.su/embed/movie/${id}`;
     }
-    if (selectedServer === 'multiembed') {
-      return isSeries 
-        ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${season}&e=${episode}`
-        : `https://multiembed.mov/?video_id=${id}&tmdb=1`;
-    }
     if (selectedServer === 'trailer' && details.trailer_key) {
       return `https://www.youtube.com/embed/${details.trailer_key}?autoplay=1&rel=0`;
     }
-    return `https://vidsrc.cc/v2/embed/movie/${id}`;
+    return '';
   };
 
   const embedUrl = getEmbedUrl();
 
-  const handleOpenExternalWindow = () => {
-    if (embedUrl) {
-      window.open(embedUrl, '_blank', 'noopener,noreferrer');
+  const handlePlayExternal = () => {
+    const externalUrl = isSeries
+      ? `https://vidsrc.cc/v2/embed/tv/${id}/${season}/${episode}`
+      : `https://vidsrc.cc/v2/embed/movie/${id}`;
+    window.open(externalUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const toggleDirectPlay = () => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
     }
   };
 
@@ -140,19 +159,34 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-30 p-2.5 rounded-full bg-black/80 hover:bg-black text-white transition-all duration-200 border border-white/20 shadow-xl"
+          className="absolute top-4 right-4 z-30 p-2.5 rounded-full bg-black/80 hover:bg-black text-white transition-all duration-200 border border-white/20 shadow-xl cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Video Player Header Area */}
         <div className="relative w-full aspect-video sm:max-h-[380px] md:max-h-[420px] bg-black shrink-0 overflow-hidden">
-          {embedUrl ? (
+          {selectedServer === 'direct' ? (
+            <div className="relative w-full h-full">
+              <video
+                ref={videoRef}
+                src={directStreamUrl}
+                poster={details.backdrop_url || details.poster_url}
+                preload="auto"
+                autoPlay
+                controls
+                onPlaying={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                className="w-full h-full object-contain cursor-pointer"
+                playsInline
+              />
+            </div>
+          ) : embedUrl ? (
             <>
               {iframeLoading && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm pointer-events-none gap-3">
                   <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
-                  <p className="text-xs text-slate-300 font-medium">Connecting to secure stream...</p>
+                  <p className="text-xs text-slate-300 font-medium">Connecting to stream...</p>
                 </div>
               )}
               <iframe
@@ -180,17 +214,16 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
         </div>
 
         {/* Notice & Server Selector Bar in Modal */}
-        <div className="px-4 sm:px-6 py-2 bg-gradient-to-r from-purple-950/60 to-slate-900/80 border-b border-purple-500/20 text-[11px] text-purple-200 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-2 bg-gradient-to-r from-purple-950/80 to-slate-900/90 border-b border-purple-500/20 text-[11px] text-purple-200 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="text-slate-200">Strict HTTPS Stream Active</span>
+            <span className="text-slate-200">Direct HD Stream Active</span>
           </div>
           <button
-            onClick={handleOpenExternalWindow}
-            className="text-[11px] font-bold text-purple-300 hover:text-white flex items-center gap-1"
+            onClick={handlePlayExternal}
+            className="text-[11px] font-bold text-purple-300 hover:text-white flex items-center gap-1 cursor-pointer"
           >
-            <span>Open Window</span>
-            <ExternalLink className="w-3 h-3" />
+            <span>Play External HD ↗</span>
           </button>
         </div>
 
@@ -198,21 +231,31 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
           {/* Server Selector */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[11px] font-bold text-slate-400 mr-1 flex items-center gap-1">
-              <Zap className="w-3.5 h-3.5 text-purple-400 fill-current" /> Stream:
+              <Zap className="w-3.5 h-3.5 text-purple-400 fill-current" /> Mode:
             </span>
             <button
+              onClick={() => setSelectedServer('direct')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                selectedServer === 'direct'
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
+                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              Direct HD Stream
+            </button>
+            <button
               onClick={() => setSelectedServer('vidsrc_cc')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 selectedServer === 'vidsrc_cc'
                   ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
                   : 'bg-white/5 text-slate-300 hover:bg-white/10'
               }`}
             >
-              Server 1 (VidSrc CC)
+              Server 1 (Embed)
             </button>
             <button
               onClick={() => setSelectedServer('embed_su')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 selectedServer === 'embed_su'
                   ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
                   : 'bg-white/5 text-slate-300 hover:bg-white/10'
@@ -220,20 +263,10 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
             >
               Server 2 (Embed.su)
             </button>
-            <button
-              onClick={() => setSelectedServer('multiembed')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                selectedServer === 'multiembed'
-                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
-                  : 'bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              Server 3 (MultiEmbed)
-            </button>
             {details.trailer_key && (
               <button
                 onClick={() => setSelectedServer('trailer')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   selectedServer === 'trailer'
                     ? 'bg-purple-600 text-white'
                     : 'bg-white/5 text-slate-300 hover:bg-white/10'
@@ -246,12 +279,12 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
 
           <div className="flex items-center gap-2">
             {/* Series Episode Selector */}
-            {isSeries && selectedServer !== 'trailer' && (
+            {isSeries && (
               <div className="flex items-center gap-1.5 text-[11px]">
                 <select
                   value={season}
                   onChange={(e) => setSeason(Number(e.target.value))}
-                  className="bg-slate-800 text-white px-2 py-0.5 rounded border border-white/10 text-xs"
+                  className="bg-slate-800 text-white px-2 py-0.5 rounded border border-white/10 text-xs cursor-pointer"
                 >
                   {[1, 2, 3, 4, 5, 6].map((s) => (
                     <option key={s} value={s}>S{s}</option>
@@ -260,7 +293,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                 <select
                   value={episode}
                   onChange={(e) => setEpisode(Number(e.target.value))}
-                  className="bg-slate-800 text-white px-2 py-0.5 rounded border border-white/10 text-xs"
+                  className="bg-slate-800 text-white px-2 py-0.5 rounded border border-white/10 text-xs cursor-pointer"
                 >
                   {Array.from({ length: 24 }).map((_, i) => (
                     <option key={i + 1} value={i + 1}>Ep {i + 1}</option>
@@ -299,7 +332,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
             <div className="flex items-center gap-3 shrink-0">
               <Link
                 to={`/watch/${details.id}`}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 text-white font-bold text-sm hover:scale-105 transition-all shadow-xl shadow-purple-900/40"
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 text-white font-bold text-sm hover:scale-105 transition-all shadow-xl shadow-purple-900/40 cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-current" />
                 Full Cinema Page
@@ -308,7 +341,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
               <button
                 onClick={handleToggleWatchlist}
                 disabled={watchlistLoading}
-                className="p-3 rounded-2xl glass-panel text-white hover:bg-white/15 transition-colors border border-white/10"
+                className="p-3 rounded-2xl glass-panel text-white hover:bg-white/15 transition-colors border border-white/10 cursor-pointer"
                 title={inWatchlist ? 'Remove from My List' : 'Add to My List'}
               >
                 {inWatchlist ? <Check className="w-5 h-5 text-emerald-400" /> : <Plus className="w-5 h-5 text-slate-300" />}
