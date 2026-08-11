@@ -18,7 +18,7 @@ import {
   Server,
   ExternalLink,
   Zap,
-  ShieldAlert,
+  ShieldCheck,
   Globe
 } from 'lucide-react';
 import api from '../services/api';
@@ -31,8 +31,8 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
-  // Top high-speed servers with anti-ISP DNS block resilience:
-  // 'vidsrc_cc' (Primary / Indian ISP friendly), 'embed_su' (Ultra CDN), 'autoembed' (Multi-source), 'trailer', 'html5'
+  // Strict HTTPS Servers:
+  // 'vidsrc_cc' (https://vidsrc.cc), 'embed_su' (https://embed.su), 'multiembed' (https://multiembed.mov), 'trailer', 'html5'
   const [selectedServer, setSelectedServer] = useState('vidsrc_cc');
   const [season, setSeason] = useState(1);
   const [episode, setEpisode] = useState(1);
@@ -243,7 +243,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // High-speed CDN URLs with anti-DNS block routing
+  // Enforce Strict HTTPS URL generation
   const getEmbedUrl = () => {
     const id = movie?.id;
     if (!id) return '';
@@ -258,10 +258,10 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         ? `https://embed.su/embed/tv/${id}/${season}/${episode}`
         : `https://embed.su/embed/movie/${id}`;
     }
-    if (selectedServer === 'autoembed') {
+    if (selectedServer === 'multiembed') {
       return isSeries 
-        ? `https://autoembed.co/tv/tmdb/${id}-${season}-${episode}`
-        : `https://autoembed.co/movie/tmdb/${id}`;
+        ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${season}&e=${episode}`
+        : `https://multiembed.mov/?video_id=${id}&tmdb=1`;
     }
     if (selectedServer === 'trailer') {
       return movie?.trailer_key
@@ -280,21 +280,21 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
   };
 
   const servers = [
-    { id: 'vidsrc_cc', name: 'Server 1 (VidSrc CC - Primary)', badge: 'Fast' },
-    { id: 'embed_su', name: 'Server 2 (Embed.su CDN)', badge: 'Ultra' },
-    { id: 'autoembed', name: 'Server 3 (AutoEmbed)', badge: 'Mirror' },
+    { id: 'vidsrc_cc', name: 'Server 1 (VidSrc CC)', badge: 'HTTPS' },
+    { id: 'embed_su', name: 'Server 2 (Embed.su)', badge: 'CDN' },
+    { id: 'multiembed', name: 'Server 3 (MultiEmbed)', badge: 'Secure' },
     ...(movie?.trailer_key ? [{ id: 'trailer', name: 'Official Trailer (YT)' }] : []),
     { id: 'html5', name: 'Demo Stream (Backup)' },
   ];
 
   return (
     <div className="space-y-3">
-      {/* Notice Banner */}
-      <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-950/50 to-purple-950/40 border border-amber-500/30 text-amber-200 text-xs sm:text-sm">
+      {/* HTTPS Secure Notice & Direct Window Bar */}
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-purple-950/60 to-slate-900/80 border border-purple-500/30 text-purple-200 text-xs sm:text-sm">
         <div className="flex items-center gap-2">
-          <Globe className="w-4 h-4 text-amber-400 shrink-0" />
-          <span className="font-medium">
-            Jio/Airtel ISP Notice: If video shows "Server IP not found", switch to <strong>Server 1 / Server 3</strong> or click <strong>Open in Player Window</strong>.
+          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="font-medium text-slate-200">
+            Secure HTTPS Stream Active. If player shows gray/blocked, switch servers above or click <strong>Open Player Window</strong>.
           </span>
         </div>
         {embedSrc && (
@@ -314,7 +314,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-300 mr-1">
             <Zap className="w-4 h-4 text-purple-400 fill-current" />
-            <span>Stream Source:</span>
+            <span>Secure Stream:</span>
           </div>
           {servers.map((s) => (
             <button
@@ -379,13 +379,13 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
         onMouseLeave={() => isPlaying && selectedServer === 'html5' && setShowControls(false)}
         className="relative w-full aspect-video max-h-[85vh] bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-800 select-none group"
       >
-        {/* Fast CDN Stream Embed */}
+        {/* Strict HTTPS Stream Embed */}
         {selectedServer !== 'html5' && embedSrc ? (
           <div className="relative w-full h-full">
             {iframeLoading && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm pointer-events-none gap-3">
                 <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
-                <p className="text-xs text-slate-300 font-medium">Connecting to high-speed stream server...</p>
+                <p className="text-xs text-slate-300 font-medium">Connecting to secure stream server...</p>
               </div>
             )}
             <iframe
@@ -578,7 +578,7 @@ const VideoPlayer = ({ movie, initialProgress = 0 }) => {
           <div className="flex items-center gap-2 text-slate-300">
             <Zap className="w-4 h-4 text-purple-400 shrink-0" />
             <span>
-              Streaming from high-speed CDN. If your network or adblocker interrupts playback, use the dedicated player window.
+              Secure stream active. If your browser blocks embedded frames, launch the direct stream window.
             </span>
           </div>
 

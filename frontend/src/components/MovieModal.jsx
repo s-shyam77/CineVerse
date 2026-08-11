@@ -15,9 +15,8 @@ import {
   Sparkles,
   Server,
   Loader2,
-  ShieldAlert,
-  Zap,
-  Globe
+  ShieldCheck,
+  Zap
 } from 'lucide-react';
 import RatingBadge from './RatingBadge';
 import GenrePill from './GenrePill';
@@ -95,7 +94,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
   const isSeries = details.type === 'series';
   const id = details.id;
 
-  // Stream embed URL generator
+  // Enforce Strict HTTPS Embed URLs
   const getEmbedUrl = () => {
     if (!id) return '';
     if (selectedServer === 'vidsrc_cc') {
@@ -108,10 +107,10 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
         ? `https://embed.su/embed/tv/${id}/${season}/${episode}`
         : `https://embed.su/embed/movie/${id}`;
     }
-    if (selectedServer === 'autoembed') {
+    if (selectedServer === 'multiembed') {
       return isSeries 
-        ? `https://autoembed.co/tv/tmdb/${id}-${season}-${episode}`
-        : `https://autoembed.co/movie/tmdb/${id}`;
+        ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${season}&e=${episode}`
+        : `https://multiembed.mov/?video_id=${id}&tmdb=1`;
     }
     if (selectedServer === 'trailer' && details.trailer_key) {
       return `https://www.youtube.com/embed/${details.trailer_key}?autoplay=1&rel=0`;
@@ -153,7 +152,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
               {iframeLoading && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm pointer-events-none gap-3">
                   <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
-                  <p className="text-xs text-slate-300 font-medium">Connecting to stream server...</p>
+                  <p className="text-xs text-slate-300 font-medium">Connecting to secure stream...</p>
                 </div>
               )}
               <iframe
@@ -181,9 +180,18 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
         </div>
 
         {/* Notice & Server Selector Bar in Modal */}
-        <div className="px-4 sm:px-6 py-2 bg-gradient-to-r from-amber-950/40 to-purple-950/30 border-b border-amber-500/20 text-[11px] text-amber-200 flex items-center gap-1.5">
-          <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span>If stream fails to load on Jio/Airtel, switch servers or click <strong>Player Window</strong>.</span>
+        <div className="px-4 sm:px-6 py-2 bg-gradient-to-r from-purple-950/60 to-slate-900/80 border-b border-purple-500/20 text-[11px] text-purple-200 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="text-slate-200">Strict HTTPS Stream Active</span>
+          </div>
+          <button
+            onClick={handleOpenExternalWindow}
+            className="text-[11px] font-bold text-purple-300 hover:text-white flex items-center gap-1"
+          >
+            <span>Open Window</span>
+            <ExternalLink className="w-3 h-3" />
+          </button>
         </div>
 
         <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-2.5 bg-black/40 border-b border-white/5 flex-wrap">
@@ -200,7 +208,7 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                   : 'bg-white/5 text-slate-300 hover:bg-white/10'
               }`}
             >
-              Server 1 (VidSrc CC - Primary)
+              Server 1 (VidSrc CC)
             </button>
             <button
               onClick={() => setSelectedServer('embed_su')}
@@ -213,14 +221,14 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
               Server 2 (Embed.su)
             </button>
             <button
-              onClick={() => setSelectedServer('autoembed')}
+              onClick={() => setSelectedServer('multiembed')}
               className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                selectedServer === 'autoembed'
+                selectedServer === 'multiembed'
                   ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
                   : 'bg-white/5 text-slate-300 hover:bg-white/10'
               }`}
             >
-              Server 3 (AutoEmbed)
+              Server 3 (MultiEmbed)
             </button>
             {details.trailer_key && (
               <button
@@ -260,16 +268,6 @@ const MovieModal = ({ movie, isOpen, onClose }) => {
                 </select>
               </div>
             )}
-
-            {/* Direct Window Fallback Button */}
-            <button
-              onClick={handleOpenExternalWindow}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-purple-300 hover:text-white text-xs font-semibold transition-colors"
-              title="Open stream in a clean external player window"
-            >
-              <ExternalLink className="w-3 h-3" />
-              <span className="hidden sm:inline">Player Window</span>
-            </button>
           </div>
         </div>
 
