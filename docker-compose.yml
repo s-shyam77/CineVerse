@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  # Optional local PostgreSQL container (₹0 free open source)
+  postgres:
+    image: postgres:16-alpine
+    container_name: cineverse_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: cineverse
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

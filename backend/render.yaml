@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: cineverse-backend
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: "pip install -r requirements.txt && python ../database/seed.py"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:///./cineverse.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 1440
+      - key: ENVIRONMENT
+        value: production
+      - key: TMDB_API_KEY
+        value: deb848e5838d61d70845d8186f942da8
